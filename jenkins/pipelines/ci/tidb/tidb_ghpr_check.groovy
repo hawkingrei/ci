@@ -25,7 +25,9 @@ GO_IMAGE_MAP = [
     "go1.13": "hub.pingcap.net/jenkins/centos7_golang-1.13:latest",
     "go1.16": "hub.pingcap.net/jenkins/centos7_golang-1.16:latest",
     "go1.18": "hub.pingcap.net/jenkins/centos7_golang-1.18:latest",
+    "bazel_master": "hub.pingcap.net/wangweizhen/tidb_image:20220718",
 ]
+RESOURCE_REQUEST_CPU = '4000m'
 
 node("master") {
     deleteDir()
@@ -33,8 +35,14 @@ node("master") {
     sh "curl -O https://raw.githubusercontent.com/PingCAP-QE/ci/main/jenkins/pipelines/goversion-select-lib.groovy"
     def script_path = "${ws}/goversion-select-lib.groovy"
     def goversion_lib = load script_path
-    GO_VERSION = goversion_lib.selectGoVersion(ghprbTargetBranch)
-    POD_GO_IMAGE = GO_IMAGE_MAP[GO_VERSION]
+    if (ghprbTargetBranch in ["master"]) {
+        GO_VERSION = "bazel_master"
+        ALWAYS_PULL_IMAGE = false
+        RESOURCE_REQUEST_CPU = '1000m'
+    } else {
+        GO_VERSION = goversion_lib.selectGoVersion(ghprbTargetBranch)
+        POD_GO_IMAGE = GO_IMAGE_MAP[GO_VERSION]
+    }
     println "go version: ${GO_VERSION}"
     println "go image: ${POD_GO_IMAGE}"
 }
@@ -57,7 +65,7 @@ def run_with_pod(Closure body) {
                     containerTemplate(
                         name: 'golang', alwaysPullImage: true,
                         image: "${POD_GO_IMAGE}", ttyEnabled: true,
-                        resourceRequestCpu: '4000m', resourceRequestMemory: '8Gi',
+                        resourceRequestCpu: RESOURCE_REQUEST_CPU, resourceRequestMemory: '8Gi',
                         command: '/bin/sh -c', args: 'cat',
                         envVars: [containerEnvVar(key: 'GOPATH', value: '/go')]     
                     )
